@@ -1,0 +1,55 @@
+import pandas as pd
+import yfinance as yf
+import datetime
+import numpy as np
+from scipy import stats
+import requests
+import io
+
+start = datetime.datetime(2001,1,1)
+end = datetime.datetime(2022,4,20)
+
+url="https://pkgstore.datahub.io/core/nasdaq-listings/nasdaq-listed_csv/data/7665719fb51081ba0bd834fde71ce822/nasdaq-listed_csv.csv"
+s = requests.get(url).content
+companies = pd.read_csv(io.StringIO(s.decode('utf-8')))
+
+Symbols = companies['Symbol'].tolist()
+
+
+stock_final = pd.DataFrame()
+# iterate over each symbol
+for i in Symbols:  
+    # print the symbol which is being downloaded
+    # print( str(Symbols.index(i)) + str(' : ') + i, sep=',', end=',', flush=True)
+    try:
+        # download the stock price 
+        stock = []
+        stock = yf.download(i,start=start, end=end, progress=False)
+        
+        # append the individual stock prices 
+        if len(stock) == 0:
+            None
+        else:
+            stock['Name'] = i
+            stock_final = stock_final.append(stock, sort=False)
+    except Exception:
+        None
+stock_final[:1048575].to_excel("stock_final.xlsx")
+
+def slope(ts):
+    x = np.arange(len(ts))
+    slope, intercept, r_value, p_value, std_err = stats.linregress(x, ts)
+    annualized_slope = (np.power(np.exp(slope), 250) -1) *100
+    return annualized_slope * (r_value ** 2)
+
+stocks = pd.DataFrame(index=stock_final[stock_final['Name']=='MSFT'].index, columns=stock_final['Name'].unique())
+for col in stocks.columns:
+    stocks[col] = stock_final[stock_final['Name'] == col]['Adj Close']
+returns = pd.DataFrame(index=stocks.index, columns=stocks.columns)
+# for i in range(len(stock_final))
+
+for col in stocks:
+    try:
+        returns[col] = np.log(stocks[col] / stocks[col].shift())
+    except Exception:
+        None
